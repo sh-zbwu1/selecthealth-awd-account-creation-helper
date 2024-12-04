@@ -18,17 +18,24 @@ namespace AWD_Create_Helper
         private static RequestService request;
         private static AuthenticationService auth;
         private static AccountService account;
-
+        private static HttpClient client;
         private static Credentials credentials = null;
 
         static async Task Main(string[] args)
         {
             try
             {
-                await Setup_EnvAsync();
-                var example_user = Return_Example_Template_User();
-                await Create_User(example_user);
-                //await Start_Cloning();
+                // set up the environment
+                await Setup_Env();
+
+                var users = Read_And_Get_Users_From_Spreadsheet("TestUsers.xlsx");
+                //var example_user = Return_Example_Template_User();
+                foreach (var user in users)
+                {
+                    var success_in_creating_user = await Create_User(user);
+                    if (success_in_creating_user)
+                        await Set_Workspace_to_Admin(user.Username);
+                }
             }
             finally
             {
@@ -41,6 +48,35 @@ namespace AWD_Create_Helper
             Console.ReadLine();
         }
 
+        /// <summary>
+        /// Set the default workspace to Administrator. The user must be on cyberark for this method to work. 
+        /// </summary>
+        /// <param name="username"></param>
+        private static async Task Set_Workspace_to_Admin(string username)
+        {
+            var password = await auth.GetCyberarkPassword(username, "DEV01");
+            Credentials credentials = null;
+            try
+            {
+                credentials = await auth.SignIn(username, password);
+                var request = new HttpRequestMessage(HttpMethod.Put, $"{awd_url}services/v1/user/workspace?name=PROCVIEW&_=1733331099811");
+                request.Headers.Add("csrf_token", credentials.csrf_token);
+                request.Headers.Add("Cookie", "JSESSIONID=" + credentials.jsession_cookie);
+
+                var response = await client.SendAsync(request);
+                if (response.StatusCode == HttpStatusCode.NoContent)
+                    Console.WriteLine($"Successfully set workspace for {username} to Administrator");
+                else
+                    Console.WriteLine("Failed to set workspace to Administrator");
+            }
+            finally
+            {
+                if (credentials != null)
+                    await auth.SignOut(credentials);
+            }
+        }
+
+
         private static AWD_User Return_Example_Template_User()
         {
             return new AWD_User()
@@ -48,7 +84,10 @@ namespace AWD_Create_Helper
                 Username = "ZHITEST1",
                 Alias = "ZHITEST1",
                 Country = "1",
+                Work_Select = "1",
                 Work_Group = "AWD FACIL",
+                First_Name = "BATCH",
+                Last_Name = "TEST",
                 Status = AccountService.Status.Available,
             };
         }
@@ -130,7 +169,7 @@ namespace AWD_Create_Helper
             return false;
         }
 
-        private static async Task Setup_EnvAsync()
+        private static async Task Setup_Env()
         {
             awd_url = "https://awdwebdev.co.ihc.com/awdServer/awd/";
             auth_username = "AWDWBSRV";
@@ -145,6 +184,8 @@ namespace AWD_Create_Helper
 
             var auth_user_password = await auth.GetCyberarkPassword(auth_username, "DEV01");
             credentials = await auth.SignIn(auth_username, auth_user_password);
+
+            client = new HttpClient();
 
             Console.WriteLine("Signed in");
         }
