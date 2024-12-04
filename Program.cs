@@ -124,7 +124,7 @@ namespace AWD_Create_Helper
                 int name_index = 0;
                 var row = sheet.GetRow(0);
 
-                var row_i = 0;
+                var row_i = 1;
                 var awd_users_to_create = new List<AWD_User>();
                 var consecutively_skipped_rows = 0;
 
