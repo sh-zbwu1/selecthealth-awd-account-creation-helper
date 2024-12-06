@@ -5,6 +5,7 @@ using SelectHealth.Ops.AWD.Logger;
 using System.Net;
 using NPOI;
 using NPOI.SS.UserModel;
+using System.Text;
 
 namespace AWD_Create_Helper
 {
@@ -34,7 +35,11 @@ namespace AWD_Create_Helper
                 {
                     var success_in_creating_user = await Create_User(user);
                     if (success_in_creating_user)
-                        await Set_Workspace_to_Admin(user.Username);
+                    {
+                        await Setup_Security_Group(user.Username);
+                        //await Set_Workspace_to_Processor(user.Username);
+                    }
+
                 }
             }
             finally
@@ -49,30 +54,53 @@ namespace AWD_Create_Helper
         }
 
         /// <summary>
+        /// Adds the STANDARD security group to the user. 
+        /// </summary>
+        /// <param name="username"></param>
+        /// <returns></returns>
+        private static async Task Setup_Security_Group(string username)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{awd_url}awdweb");
+            var payload = $"<SecurityGroupViewRequest><add><securityGroup><userId>{username}</userId><securityGroup>STANDARD</securityGroup></securityGroup></add></SecurityGroupViewRequest>";
+            var content = new StringContent(payload, Encoding.UTF8, "text/xml");
+            request.Content = content;
+            request.Headers.Add("csrf_token", credentials.csrf_token);
+            request.Headers.Add("Cookie", "JSESSIONID=" + credentials.jsession_cookie);
+
+            var response = await client.SendAsync(request);
+            var response_content = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == HttpStatusCode.OK)
+                Console.WriteLine($"Successfully added STANDARD security group to {username}");
+            else
+                Console.WriteLine($"Failed to add STANDARD security group to {username}");
+        }
+
+        /// <summary>
         /// Set the default workspace to Administrator. The user must be on cyberark for this method to work. 
         /// </summary>
         /// <param name="username"></param>
-        private static async Task Set_Workspace_to_Admin(string username)
+        private static async Task Set_Workspace_to_Processor(string username)
         {
             var password = await auth.GetCyberarkPassword(username, "DEV01");
-            Credentials credentials = null;
+            Credentials _credentials = null;
             try
             {
-                credentials = await auth.SignIn(username, password);
-                var request = new HttpRequestMessage(HttpMethod.Put, $"{awd_url}services/v1/user/workspace?name=PROCVIEW&_=1733331099811");
-                request.Headers.Add("csrf_token", credentials.csrf_token);
-                request.Headers.Add("Cookie", "JSESSIONID=" + credentials.jsession_cookie);
+                _credentials = await auth.SignIn(username, password);
+                var request = new HttpRequestMessage(HttpMethod.Put, $"{awd_url}services/v1/user/workspace?name=WSPROCSR&_=1733331099811");
+                request.Headers.Add("csrf_token", _credentials.csrf_token);
+                request.Headers.Add("Cookie", "JSESSIONID=" + _credentials.jsession_cookie);
 
                 var response = await client.SendAsync(request);
+                var response_content = await response.Content.ReadAsStringAsync();
                 if (response.StatusCode == HttpStatusCode.NoContent)
-                    Console.WriteLine($"Successfully set workspace for {username} to Administrator");
+                    Console.WriteLine($"Successfully set workspace for {username} to Processor");
                 else
-                    Console.WriteLine("Failed to set workspace to Administrator");
+                    Console.WriteLine("Failed to set workspace to Processor");
             }
             finally
             {
-                if (credentials != null)
-                    await auth.SignOut(credentials);
+                if (_credentials != null)
+                    await auth.SignOut(_credentials);
             }
         }
 
@@ -92,14 +120,17 @@ namespace AWD_Create_Helper
             };
         }
 
-        private static AWD_User Quick_Create_Template_User(string username)
+        private static AWD_User Quick_Create_Template_User(string username, string firstname = "", string lastname = "")
         {
+
             return new AWD_User()
             {
                 Username = username,
                 Alias = username,
                 Country = "1",
                 Work_Group = "AWD FACIL",
+                First_Name = string.IsNullOrWhiteSpace(firstname) ? username : firstname,
+                Last_Name = string.IsNullOrWhiteSpace(lastname) ? username : lastname,
                 Status = AccountService.Status.Available,
             };
         }
@@ -121,7 +152,10 @@ namespace AWD_Create_Helper
                     return null;
                 }
 
-                int name_index = 0;
+                int username_index = 0;
+                int firstname_index = 1;
+                int lastname_index = 2;
+
                 var row = sheet.GetRow(0);
 
                 var row_i = 1;
@@ -145,9 +179,11 @@ namespace AWD_Create_Helper
                         consecutively_skipped_rows = 0;
                     }
 
-                    string username = row.GetCell(name_index).ToString();
+                    string username = row.GetCell(username_index).ToString();
+                    string firstname = row.GetCell(firstname_index)?.ToString();
+                    string lastname = row.GetCell(lastname_index)?.ToString();
 
-                    awd_users_to_create.Add(Quick_Create_Template_User(username));
+                    awd_users_to_create.Add(Quick_Create_Template_User(username, firstname, lastname));
 
                     row_i++;
                 }
@@ -190,26 +226,6 @@ namespace AWD_Create_Helper
             Console.WriteLine("Signed in");
         }
 
-        static async Task Start_Cloning()
-        {
-            Console.WriteLine("Setup Complete");
-            Credentials? credentials = null;
-
-            var (result, template_userF) = await account.GetUserAccountDetail(template_username, credentials);
-
-            if (!result)
-            {
-                Console.WriteLine("Failed to get user account details for template user");
-                return;
-            }
-
-            // TODO write about template user
-            Console.WriteLine($"Template user: {template_userF}");
-            Console.WriteLine($"\t{template_userF}");
-
-            //AWD_User template_user = null; // TODO
-            //await Clone_User(template_user, "ZHITEST1");
-        }
 
         private static async Task<bool> Create_User(AWD_User template_user)
         {
