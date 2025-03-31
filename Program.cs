@@ -33,13 +33,14 @@ namespace AWD_Create_Helper
                 //var example_user = Return_Example_Template_User();
                 foreach (var user in users)
                 {
-                    //var success_in_creating_user = await Create_User(user);
                     await Delete_User(user);
-                    //if (success_in_creating_user)
-                    //{
-                    //    await Setup_Security_Group(user.Username);
-                    //await Set_Workspace_to_Processor(user.Username);
-                    //}
+                    var success_in_creating_user = await Create_User(user);
+                    if (success_in_creating_user)
+                    {
+                        await Setup_Security_Group(user.Username, "STANDARD");
+                        await Setup_Security_Group(user.Username, "PROC_SVL");
+                        //await Set_Workspace_to_Processor(user.Username);
+                    }
 
                 }
             }
@@ -57,7 +58,7 @@ namespace AWD_Create_Helper
         private static async Task<bool> Delete_User(AWD_User template_user)
         {
             Console.WriteLine($"Deleting user {template_user.Username}");
-            var (success, result) = await account.RemoveUserAccount(template_user.Username, 
+            var (success, result) = await account.RemoveUserAccount(template_user.Username,
                 credentials);
 
             if (!success)
@@ -77,10 +78,10 @@ namespace AWD_Create_Helper
         /// </summary>
         /// <param name="username"></param>
         /// <returns></returns>
-        private static async Task Setup_Security_Group(string username)
+        private static async Task Setup_Security_Group(string username, string security_group)
         {
             var request = new HttpRequestMessage(HttpMethod.Post, $"{awd_url}awdweb");
-            var payload = $"<SecurityGroupViewRequest><add><securityGroup><userId>{username}</userId><securityGroup>STANDARD</securityGroup></securityGroup></add></SecurityGroupViewRequest>";
+            var payload = $"<SecurityGroupViewRequest><add><securityGroup><userId>{username}</userId><securityGroup>{security_group}</securityGroup></securityGroup></add></SecurityGroupViewRequest>";
             var content = new StringContent(payload, Encoding.UTF8, "text/xml");
             request.Content = content;
             request.Headers.Add("csrf_token", credentials.csrf_token);
@@ -89,9 +90,9 @@ namespace AWD_Create_Helper
             var response = await client.SendAsync(request);
             var response_content = await response.Content.ReadAsStringAsync();
             if (response.StatusCode == HttpStatusCode.OK)
-                Console.WriteLine($"Successfully added STANDARD security group to {username}");
+                Console.WriteLine($"Successfully added {security_group} security group to {username}");
             else
-                Console.WriteLine($"Failed to add STANDARD security group to {username}");
+                Console.WriteLine($"Failed to add {security_group} security group to {username}");
         }
 
         /// <summary>
