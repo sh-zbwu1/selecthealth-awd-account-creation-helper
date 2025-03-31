@@ -33,12 +33,13 @@ namespace AWD_Create_Helper
                 //var example_user = Return_Example_Template_User();
                 foreach (var user in users)
                 {
-                    var success_in_creating_user = await Create_User(user);
-                    if (success_in_creating_user)
-                    {
-                        await Setup_Security_Group(user.Username);
-                        //await Set_Workspace_to_Processor(user.Username);
-                    }
+                    //var success_in_creating_user = await Create_User(user);
+                    await Delete_User(user);
+                    //if (success_in_creating_user)
+                    //{
+                    //    await Setup_Security_Group(user.Username);
+                    //await Set_Workspace_to_Processor(user.Username);
+                    //}
 
                 }
             }
@@ -51,6 +52,24 @@ namespace AWD_Create_Helper
 
             Console.WriteLine("Press any key to exit");
             Console.ReadLine();
+        }
+
+        private static async Task<bool> Delete_User(AWD_User template_user)
+        {
+            Console.WriteLine($"Deleting user {template_user.Username}");
+            var (success, result) = await account.RemoveUserAccount(template_user.Username, 
+                credentials);
+
+            if (!success)
+            {
+                Console.WriteLine($"Failed to delete user {template_user.Username}, {result}");
+            }
+            else
+            {
+                Console.WriteLine($"Deleted user {template_user.Username}");
+            }
+
+            return success;
         }
 
         /// <summary>
