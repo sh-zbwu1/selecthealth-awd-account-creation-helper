@@ -33,13 +33,13 @@ namespace AWD_Create_Helper
                 //var example_user = Return_Example_Template_User();
                 foreach (var user in users)
                 {
-                    await Delete_User(user);
-                    var success_in_creating_user = await Create_User(user);
-                    if (success_in_creating_user)
+                    //await Delete_User(user);
+                    //var success_in_creating_user = await Create_User(user);
+                    //if (success_in_creating_user)
                     {
                         await Setup_Security_Group(user.Username, "STANDARD");
                         await Setup_Security_Group(user.Username, "PROC_SVL");
-                        //await Set_Workspace_to_Processor(user.Username);
+                        await Set_Workspace_to_Processor(user.Username);
                     }
 
                 }
@@ -102,26 +102,17 @@ namespace AWD_Create_Helper
         private static async Task Set_Workspace_to_Processor(string username)
         {
             var password = await auth.GetCyberarkPassword(username, "DEV01");
-            Credentials _credentials = null;
-            try
-            {
-                _credentials = await auth.SignIn(username, password);
-                var request = new HttpRequestMessage(HttpMethod.Put, $"{awd_url}services/v1/user/workspace?name=WSPROCSR&_=1733331099811");
-                request.Headers.Add("csrf_token", _credentials.csrf_token);
-                request.Headers.Add("Cookie", "JSESSIONID=" + _credentials.jsession_cookie);
+            var request = new HttpRequestMessage(HttpMethod.Put, $"{awd_url}services/v1/user/workspace?name=WSPROCSR&_=1733331099811");
+            request.Headers.Add("csrf_token", credentials.csrf_token);
+            request.Headers.Add("Cookie", "JSESSIONID=" + credentials.jsession_cookie);
 
-                var response = await client.SendAsync(request);
-                var response_content = await response.Content.ReadAsStringAsync();
-                if (response.StatusCode == HttpStatusCode.NoContent)
-                    Console.WriteLine($"Successfully set workspace for {username} to Processor");
-                else
-                    Console.WriteLine("Failed to set workspace to Processor");
-            }
-            finally
-            {
-                if (_credentials != null)
-                    await auth.SignOut(_credentials);
-            }
+            var response = await client.SendAsync(request);
+            var response_content = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == HttpStatusCode.NoContent)
+                Console.WriteLine($"Successfully set workspace for {username} to Processor");
+            else
+                Console.WriteLine("Failed to set workspace to Processor");
+
         }
 
 
@@ -227,7 +218,7 @@ namespace AWD_Create_Helper
 
         private static async Task Setup_Env()
         {
-            awd_url = "https://awdwebdev.co.ihc.com/awdServer/awd/";
+            awd_url = "https://awdwebuat.co.ihc.com/awdServer/awd/";
             auth_username = "AWDWBSRV";
             template_username = "AWDWBSRV";
 
