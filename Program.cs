@@ -1,10 +1,11 @@
 ﻿using NLog;
-using SelectHealth.Ops.AWD.Core;
-using SelectHealth.Ops.AWD.Entities;
-using SelectHealth.Ops.AWD.Logger;
-using System.Net;
 using NPOI;
 using NPOI.SS.UserModel;
+using SelectHealth.Ops.AWD.Core;
+using SelectHealth.Ops.AWD.Entities;
+using SelectHealth.Ops.AWD.Entities.Serializable;
+using SelectHealth.Ops.AWD.Logger;
+using System.Net;
 using System.Text;
 
 namespace AWD_Create_Helper
@@ -37,11 +38,10 @@ namespace AWD_Create_Helper
                     //var success_in_creating_user = await Create_User(user);
                     //if (success_in_creating_user)
                     {
-                        await Setup_Security_Group(user.Username, "STANDARD");
-                        await Setup_Security_Group(user.Username, "PROC_SVL");
-                        await Set_Workspace_to_Processor(user.Username);
-                    }
+                        await Clone_Account("2HBSPHON", user.Username);
 
+                       // await Set_Workspace_to_Processor(user.Username);
+                    }
                 }
             }
             finally
@@ -53,6 +53,24 @@ namespace AWD_Create_Helper
 
             Console.WriteLine("Press any key to exit");
             Console.ReadLine();
+        }
+
+        private static async Task Clone_Account(string from_account, string to_account)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{awd_url}awdweb");
+            var payload = $"<CloneUserPrivilegesViewRequest><clone><fromUserId>{from_account}</fromUserId><toUserId>{to_account}</toUserId><cloneWorkType>true</cloneWorkType><cloneQueue>true</cloneQueue><businessArea>true</businessArea><source>true</source><folder>true</folder><experience>true</experience><security>true</security><role>true</role><replace>false</replace></clone></CloneUserPrivilegesViewRequest>\r\n";
+            var content = new StringContent(payload, Encoding.UTF8, "text/xml");
+            request.Content = content;
+            request.Headers.Add("csrf_token", credentials.csrf_token);
+            request.Headers.Add("Cookie", "JSESSIONID=" + credentials.jsession_cookie);
+
+            var response = await client.SendAsync(request);
+            var response_content = await response.Content.ReadAsStringAsync();
+            if (response.StatusCode == HttpStatusCode.OK)
+                Console.WriteLine($"Successfully cloned {from_account} to {to_account}");
+            else
+                Console.WriteLine($"Failed to clone {from_account} to {to_account}");
+
         }
 
         private static async Task<bool> Delete_User(AWD_User template_user)
@@ -218,7 +236,7 @@ namespace AWD_Create_Helper
 
         private static async Task Setup_Env()
         {
-            awd_url = "https://awdwebuat.co.ihc.com/awdServer/awd/";
+            awd_url = "https://awdwebqa.co.ihc.com/awdServer/awd/";
             auth_username = "AWDWBSRV";
             template_username = "AWDWBSRV";
 
